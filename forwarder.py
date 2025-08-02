@@ -2,6 +2,8 @@ import asyncio
 import httpx
 from fastapi import Request, Response
 from starlette.responses import JSONResponse
+import logging
+logging.basicConfig(level=logging.INFO)
 
 import config
 from key_manager import key_manager
@@ -17,7 +19,9 @@ async def forward_request(request: Request):
         return JSONResponse(status_code=503, content={"error": "All keys are currently exhausted"})
 
     client = httpx.AsyncClient()
-    url = f"{config.UPSTREAM_URL}{request.url.path}"
+    url = httpx.URL(config.UPSTREAM_URL).join(request.url.path.lstrip('/'))
+    if config.DEBUG:
+        logging.info(f"Forwarding request to URL: {url}")
     
     query_params = dict(request.query_params)
     if "key" in query_params:
@@ -43,7 +47,10 @@ async def forward_request(request: Request):
                     quota_id = error_data.get("error", {}).get("details", [{}]).get("metadata", {}).get("quotaId")
                     if quota_id:
                         await key_manager.handle_resource_exhausted(gemini_key, quota_id)
-                return Response(content=response.content, status_code=response.status_code, headers=response.headers)
+                response_content = response.content
+                if config.DEBUG:
+                    logging.info(f"Response: {response.status_code} {response_content}")
+                return Response(content=response_content, status_code=response.status_code, headers=response.headers)
 
         except httpx.RequestError as e:
             return JSONResponse(status_code=500, content={"error": f"Request failed: {e}"})
