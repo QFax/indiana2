@@ -11,9 +11,9 @@ The primary goal of this project is to create a proxy server for the Gemini API 
 - **Usage Tracking:** The proxy will track the usage of each key, counting the number of requests per minute and per day.
 
 ### 2.2. Intelligent Error Handling
-- **"Model Overloaded" Retries:** If a request to the Gemini API fails with a "Model Overloaded" error, the proxy will not immediately return an error to the client. Instead, it will wait for a fixed delay and then retry the request. This process will be repeated until a successful response is received.
+- **"Model Overloaded" Retries:** If a request to the Gemini API fails with a "Model Overloaded" error (HTTP 503), the proxy will wait for a fixed delay and retry. This will be repeated up to a configurable maximum number of retries. If all retries fail, the proxy will return an error to the client.
 - **"Resource Exhausted" Management:** If a request fails with a "Resource Exhausted" error, the proxy will:
-    - Identify whether the quota was exceeded for the minute or the day.
+    - Parse the `quotaId` field from the JSON error response to identify whether the quota was exceeded for the minute or the day (e.g., if `quotaId` contains "PerDay"). All `quotaId` values will be logged for monitoring.
     - Temporarily remove the exhausted key from the rotation pool.
     - The key will be returned to the pool after the appropriate time has passed (i.e., at the start of the next minute or the next day).
 
@@ -21,7 +21,8 @@ The primary goal of this project is to create a proxy server for the Gemini API 
 - The proxy will authenticate incoming requests using one of the following methods, in order of precedence:
     1.  **`x-goog-api-key` Header:** Check if the header is present and its value matches one of the round-robin keys or a dedicated authentication key.
     2.  **`key` Query Parameter:** If the header is not present or doesn't match, check for a `key` query parameter and validate its value.
-- The `key` query parameter will always be stripped from the request before it is forwarded to the Gemini API.
+- The key rotation will proceed independently of the key used for client authentication.
+- The `key` query parameter will always be stripped from the request before it is forwarded to the Gemini API. The rest of the path and query parameters will be preserved.
 
 ### 2.4. Usage Reporting
 - A JSON endpoint will be available at a configurable subpath (e.g., `/status`).
@@ -63,6 +64,7 @@ The primary goal of this project is to create a proxy server for the Gemini API 
         - `GEMINI_API_KEYS`: A comma-separated list of Gemini API keys for round-robin usage.
         - `AUTH_KEY`: An optional, dedicated key for client authentication.
         - `RETRY_DELAY_SECONDS`: The fixed delay (in seconds) for retrying "Model Overloaded" errors.
+        - `MAX_RETRIES`: The maximum number of retries for "Model Overloaded" errors. A value of `0` indicates indefinite retries.
         - `PORT`: The port for the proxy server.
         - `UPSTREAM_URL`: The base URL for the Gemini API (e.g., `https://generativelanguage.googleapis.com`).
         - `REPORTING_PATH`: The subpath for the JSON reporting endpoint.
