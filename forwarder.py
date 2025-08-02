@@ -33,12 +33,15 @@ async def forward_request(request: Request):
 
     for _ in range(config.MAX_RETRIES + 1 if config.MAX_RETRIES > 0 else 1_000_000):
         try:
+            request_body = await request.body()
+            if config.DEBUG:
+                logging.info(f"Request: {request.method} {url} {headers} {request_body}")
             response = await client.request(
                 method=request.method,
                 url=url,
                 params=query_params,
                 headers=headers,
-                content=await request.body(),
+                content=request_body,
             )
 
             if response.status_code != 503:
