@@ -25,7 +25,7 @@ class APIKeyManager:
     async def get_next_key(self):
         async with self.lock:
             for _ in range(len(self.keys)):
-                key = self.keys
+                key = self.keys[0]
                 self.keys.rotate(-1)
                 if not self._is_key_exhausted(key):
                     self._record_request(key)
